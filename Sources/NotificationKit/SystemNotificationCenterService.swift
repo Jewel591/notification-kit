@@ -43,19 +43,16 @@ final class SystemNotificationCenterService: NotificationCenterServicing, @unche
     }
 
     func schedule(_ request: ScheduledNotificationRequest) async throws {
-        let content = UNMutableNotificationContent()
-        content.title = request.title
-        content.subtitle = request.subtitle
-        content.body = request.body
-        content.sound = .default
-        content.threadIdentifier = request.threadIdentifier ?? ""
-        content.categoryIdentifier = request.categoryIdentifier ?? ""
-        var userInfo = request.payload
-        let source = NotificationCenterDelegateAdapter.parseManagedIdentifier(request.identifier)
-        userInfo[Self.namespaceKey] = source?.namespace
-        userInfo[Self.hostIDKey] = source?.id
-        userInfo[Self.fingerprintKey] = request.fingerprint
-        content.userInfo = userInfo
+        let content = makeContent(
+            identifier: request.identifier,
+            title: request.title,
+            subtitle: request.subtitle,
+            body: request.body,
+            threadIdentifier: request.threadIdentifier,
+            categoryIdentifier: request.categoryIdentifier,
+            payload: request.payload,
+            fingerprint: request.fingerprint
+        )
 
         let trigger: UNNotificationTrigger
         switch request.trigger {
@@ -75,6 +72,52 @@ final class SystemNotificationCenterService: NotificationCenterServicing, @unche
             content: content,
             trigger: trigger
         ))
+    }
+
+    func submitImmediately(_ request: ImmediateNotificationRequest) async throws {
+        let content = makeContent(
+            identifier: request.identifier,
+            title: request.title,
+            subtitle: request.subtitle,
+            body: request.body,
+            threadIdentifier: request.threadIdentifier,
+            categoryIdentifier: request.categoryIdentifier,
+            payload: request.payload,
+            fingerprint: nil
+        )
+        try await center.add(UNNotificationRequest(
+            identifier: request.identifier,
+            content: content,
+            trigger: nil
+        ))
+    }
+
+    private func makeContent(
+        identifier: String,
+        title: String,
+        subtitle: String,
+        body: String,
+        threadIdentifier: String?,
+        categoryIdentifier: String?,
+        payload: [String: String],
+        fingerprint: String?
+    ) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.subtitle = subtitle
+        content.body = body
+        content.sound = .default
+        content.threadIdentifier = threadIdentifier ?? ""
+        content.categoryIdentifier = categoryIdentifier ?? ""
+        var userInfo = payload
+        let source = NotificationCenterDelegateAdapter.parseManagedIdentifier(identifier)
+        userInfo[Self.namespaceKey] = source?.namespace
+        userInfo[Self.hostIDKey] = source?.id
+        if let fingerprint {
+            userInfo[Self.fingerprintKey] = fingerprint
+        }
+        content.userInfo = userInfo
+        return content
     }
 
     func removePendingNotificationRequests(

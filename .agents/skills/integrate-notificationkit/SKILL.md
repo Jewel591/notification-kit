@@ -6,8 +6,8 @@ description: Integrate, migrate, review, or troubleshoot an Apple app that uses 
 # Integrate NotificationKit
 
 Use NotificationKit as the app's only implementation of notification
-authorization truth, local request reconciliation, category registration, and
-`UNUserNotificationCenterDelegate` response handoff. Keep product eligibility,
+authorization truth, local request reconciliation, one-shot event submission,
+category registration, and `UNUserNotificationCenterDelegate` response handoff. Keep product eligibility,
 localized copy, navigation, analytics, and APNs infrastructure in the host.
 
 NotificationKit is internal portfolio infrastructure despite its public GitHub
@@ -97,6 +97,11 @@ every other assignment to
 `UNUserNotificationCenter.current().delegate`; route existing APNs responses
 through `.unmanaged` instead of adding a second delegate.
 
+Processes with no response route, such as a Widget/App Intent extension that
+only authors the same local schedule, construct `NotificationClient()` without
+a router. Link the package to that extension, use the exact same namespace and
+stable host IDs as the main App, and do not retain a second direct scheduler.
+
 The package's `Testing` SPI may be imported only by tests that need a fake
 notification center. Never use it in a production target or treat it as an
 alternate wiring/configuration path.
@@ -179,6 +184,30 @@ Do not schedule requests directly alongside the Kit.
 Treat `.notLoaded` as the safe loading state. Using `.loaded([])` before
 preferences finish loading erases valid reminders by design.
 
+## Submit event notifications separately
+
+Use `submitImmediately(namespace:notification:)` for an event that already
+happened: App Intent completion/failure, geofence entry/exit, a Live Activity
+fallback, or similar one-shot feedback. The Kit checks current authorization
+without prompting and submits a `nil`-trigger system request.
+
+```swift
+let outcome = await notifications.submitImmediately(
+    namespace: try NotificationNamespace("analysis-results"),
+    notification: try ImmediateNotification(
+        id: resultID.uuidString,
+        title: localizedTitle,
+        body: localizedBody,
+        payload: ["route": "results/\(resultID)"]
+    )
+)
+```
+
+Use a stable event ID or a genuine event UUID. Do not manufacture a timestamp
+solely to force duplicates. Never place immediate events in
+`NotificationDesiredSet`; reconciliation represents future desired state and
+must remain safely repeatable.
+
 ## Migrate existing requests without duplicates
 
 1. Preserve each old feature's exact identifier prefix.
@@ -213,6 +242,10 @@ The Kit provides data only; navigation remains host-owned.
   management.
 - Do not expose new configuration for fixed foreground presentation, default
   sound, authorization options, identifier format, or the pending-request cap.
+- APNs apps retain `UIApplicationDelegate` token callbacks, but remove their
+  `UNUserNotificationCenterDelegate` conformance. NotificationKit presents
+  foreground remote notifications and routes their custom string keys through
+  `.unmanaged`; the App router interprets those keys.
 
 ## Verify the migration
 
@@ -225,6 +258,9 @@ Run focused tests proving:
 - legacy IDs are replaced without duplicate delivery;
 - unrelated and APNs identifiers survive reconciliation;
 - notification actions reach the expected app route;
+- immediate event notifications submit once and never prompt or enter desired state;
+- concurrent namespaces never make independent stale capacity decisions;
+- delegate routing and completion return to the main thread from a background callback;
 - no second delegate or direct scheduler remains.
 
 Finally run product-playbook's `notification-kit-lint`. Passing the structural

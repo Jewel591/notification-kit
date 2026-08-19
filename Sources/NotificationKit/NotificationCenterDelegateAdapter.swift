@@ -23,9 +23,26 @@ final class NotificationCenterDelegateAdapter: NSObject, UNUserNotificationCente
     ) {
         let routed = Self.makeResponse(from: response)
         let routerBox = routerBox
+        Self.completeResponse(
+            routed,
+            route: { response in
+                routerBox.router?.handle(response)
+            },
+            completionHandler: completionHandler
+        )
+    }
+
+    /// Testable seam for the framework requirement that routing and the system
+    /// completion callback return to the main actor even when delivery begins
+    /// on an arbitrary queue.
+    nonisolated static func completeResponse(
+        _ response: NotificationResponse,
+        route: @escaping @MainActor @Sendable (NotificationResponse) -> Void,
+        completionHandler: @escaping () -> Void
+    ) {
         let completion = UncheckedSendable(value: completionHandler)
         Task { @MainActor in
-            routerBox.router?.handle(routed)
+            route(response)
             completion.value()
         }
     }

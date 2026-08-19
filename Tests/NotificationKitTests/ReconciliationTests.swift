@@ -200,4 +200,43 @@ struct ReconciliationTests {
         #expect(await center.pending.isEmpty)
         #expect(await center.scheduled.isEmpty)
     }
+
+    @Test
+    func differentNamespacesShareOneCapacitySnapshotAtATime() async throws {
+        let center = TestNotificationCenter()
+        await center.configure(pendingDelayNanoseconds: 50_000_000)
+        let client = NotificationClient(testingCenter: center)
+        let first = try NotificationNamespace("first")
+        let second = try NotificationNamespace("second")
+        let firstDesired = try (0..<40).map {
+            try DesiredNotification(
+                id: "item-\($0)",
+                title: "First",
+                body: "Body",
+                trigger: .timeInterval(TimeInterval(60 + $0), repeats: false)
+            )
+        }
+        let secondDesired = try (0..<40).map {
+            try DesiredNotification(
+                id: "item-\($0)",
+                title: "Second",
+                body: "Body",
+                trigger: .timeInterval(TimeInterval(60 + $0), repeats: false)
+            )
+        }
+
+        async let firstReport = client.reconcile(
+            namespace: first,
+            desired: .loaded(firstDesired)
+        )
+        async let secondReport = client.reconcile(
+            namespace: second,
+            desired: .loaded(secondDesired)
+        )
+        let reports = await [firstReport, secondReport]
+
+        #expect(reports.reduce(0) { $0 + $1.scheduled.count } == 64)
+        #expect(reports.reduce(0) { $0 + $1.overflow.count } == 16)
+        #expect(await center.pending.count == 64)
+    }
 }

@@ -2,8 +2,8 @@
 
 An opinionated Swift package for the shared notification mechanics in Ivens'
 Apple app portfolio: operating-system authorization truth, explicit permission
-requests, deterministic local scheduling, category/action registration, and a
-single typed response handoff.
+requests, deterministic local scheduling, one-shot event notifications,
+category/action registration, and a single typed response handoff.
 
 NotificationKit contains no notification UI and no growth strategy. Apps keep
 their own reminder rules, localized copy, onboarding education, settings
@@ -21,6 +21,10 @@ screens, navigation, analytics, and APNs infrastructure.
   that namespace.
 - Reconciliation is namespace-scoped and never removes another feature's
   requests. Legacy prefixes can be adopted without leaving duplicate reminders.
+- Reconciliations across namespaces are serialized inside the Kit so every
+  capacity decision sees the latest shared 64-request queue.
+- Event notifications use `submitImmediately`. They never enter a desired
+  schedule and therefore cannot be replayed by a later reconciliation.
 - APNs device registration, tokens, provider calls, remote payloads, delivery
   monitoring, and server scheduling are out of scope.
 
@@ -45,6 +49,9 @@ await notifications.refreshAuthorization()
 
 The client retains the router for its lifetime. Keep the client at the app
 composition root; do not construct another notification client per screen.
+When a process has no notification-tap route—typically a Widget/App Intent
+extension that only reconciles a shared schedule—use `NotificationClient()`;
+do not create a no-op router.
 The system-center adapter is intentionally not public API. A narrowly named
 `Testing` SPI exists for deterministic host tests; it is not an alternate
 production wiring path or a policy configuration surface.
@@ -96,6 +103,27 @@ Use `.notLoaded` while asynchronous preferences/data are unresolved. Pass
 `.loaded([])` only when the host has authoritatively decided that no request
 should remain. Reconciliation never prompts; when authorization cannot deliver,
 it clears only the requested namespace and reports the reason.
+
+## Submit an event notification
+
+Use the separate one-shot API for a completed background/App Intent action,
+geofence event, Live Activity fallback, or other event that already happened:
+
+```swift
+let outcome = await notifications.submitImmediately(
+    namespace: try NotificationNamespace("imports"),
+    notification: try ImmediateNotification(
+        id: "completed-\(jobID)",
+        title: String(localized: "Import complete"),
+        body: String(localized: "Your items are ready."),
+        payload: ["route": "imports/\(jobID)"]
+    )
+)
+```
+
+This API reads authorization but never prompts. Use a stable event identity or
+a genuine event UUID as `id`; do not use the current timestamp merely to bypass
+deduplication. Do not model an immediate event as a one-second desired schedule.
 
 ## Categories and responses
 

@@ -7,6 +7,7 @@ actor NotificationReconciler {
     private let now: @Sendable () -> Date
     private let calendar: @Sendable () -> Calendar
     private var generations: [String: UInt64] = [:]
+    private var queueTail: Task<Void, Never>?
 
     init(
         center: any NotificationCenterServicing,
@@ -24,6 +25,30 @@ actor NotificationReconciler {
     ) async -> ReconciliationReport {
         let generation = (generations[namespace.id] ?? 0) &+ 1
         generations[namespace.id] = generation
+
+        let previous = queueTail
+        let operation = Task { [self] in
+            await previous?.value
+            return await performReconciliation(
+                namespace: namespace,
+                desired: desired,
+                generation: generation
+            )
+        }
+        queueTail = Task {
+            _ = await operation.value
+        }
+        return await operation.value
+    }
+
+    private func performReconciliation(
+        namespace: NotificationNamespace,
+        desired: NotificationDesiredSet,
+        generation: UInt64
+    ) async -> ReconciliationReport {
+        guard isCurrent(generation, namespace: namespace.id) else {
+            return ReconciliationReport(disposition: .superseded)
+        }
 
         guard case let .loaded(notifications) = desired else {
             return ReconciliationReport(disposition: .notLoaded)

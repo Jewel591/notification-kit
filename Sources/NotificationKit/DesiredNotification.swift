@@ -62,11 +62,7 @@ public struct DesiredNotification: Sendable, Equatable {
         payload: [String: String] = [:],
         trigger: NotificationTriggerSpec
     ) throws {
-        guard !id.isEmpty, !id.hasPrefix("."), !id.hasSuffix("."),
-              id.unicodeScalars.allSatisfy({
-                  CharacterSet.alphanumerics.contains($0)
-                      || $0 == "-" || $0 == "_" || $0 == "."
-              }) else {
+        guard NotificationIdentifierValidator.isValid(id) else {
             throw NotificationIdentifierError.invalidNotificationID(id)
         }
         self.id = id
@@ -77,6 +73,16 @@ public struct DesiredNotification: Sendable, Equatable {
         self.categoryIdentifier = categoryIdentifier
         self.payload = payload
         self.trigger = trigger
+    }
+}
+
+enum NotificationIdentifierValidator {
+    static func isValid(_ id: String) -> Bool {
+        !id.isEmpty && !id.hasPrefix(".") && !id.hasSuffix(".")
+            && id.unicodeScalars.allSatisfy {
+                CharacterSet.alphanumerics.contains($0)
+                    || $0 == "-" || $0 == "_" || $0 == "."
+            }
     }
 }
 

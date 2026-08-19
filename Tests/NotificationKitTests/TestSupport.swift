@@ -15,6 +15,7 @@ actor TestNotificationCenter: NotificationCenterServicing {
     var pending: [PendingNotificationSnapshot] = []
     var delivered: [String] = []
     var scheduled: [ScheduledNotificationRequest] = []
+    var immediateSubmissions: [ImmediateNotificationRequest] = []
     var removedPending: [String] = []
     var removedDelivered: [String] = []
     var categories: [NotificationCategorySpec] = []
@@ -34,10 +35,11 @@ actor TestNotificationCenter: NotificationCenterServicing {
     }
 
     func pendingNotifications() async -> [PendingNotificationSnapshot] {
+        let snapshot = pending
         if pendingDelayNanoseconds > 0 {
             try? await Task.sleep(nanoseconds: pendingDelayNanoseconds)
         }
-        return pending
+        return snapshot
     }
 
     func deliveredNotificationIdentifiers() async -> [String] {
@@ -54,6 +56,13 @@ actor TestNotificationCenter: NotificationCenterServicing {
             identifier: request.identifier,
             fingerprint: request.fingerprint
         ))
+    }
+
+    func submitImmediately(_ request: ImmediateNotificationRequest) async throws {
+        if failingIdentifiers.contains(request.identifier) {
+            throw TestCenterError.schedulingFailed
+        }
+        immediateSubmissions.append(request)
     }
 
     func removePendingNotificationRequests(withIdentifiers identifiers: [String]) async {

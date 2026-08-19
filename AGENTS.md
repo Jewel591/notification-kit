@@ -1,15 +1,15 @@
 # NotificationKit
 
 Public Swift package that standardizes notification authorization truth, local
-notification reconciliation, categories/actions, and response routing across
-Ivens' Apple app portfolio.
+notification reconciliation, one-shot event submission, categories/actions,
+and response routing across Ivens' Apple app portfolio.
 
 ## Product boundary
 
 - The package owns the current `UNUserNotificationCenter` authorization truth,
   an explicitly user-triggered request API, deterministic local-notification
-  reconciliation, package-owned identifiers, category registration, and the
-  single notification-center delegate handoff.
+  reconciliation, one-shot event submission, package-owned identifiers,
+  category registration, and the single notification-center delegate handoff.
 - Host apps own reminder eligibility, schedules as business decisions, copy and
   localization, onboarding and Settings UI, growth frequency, quiet-hour
   policy, analytics, and every deep-link/navigation action.
@@ -42,6 +42,10 @@ Ivens' Apple app portfolio.
 - The global 64-pending-request limit preserves requests outside the current
   namespace. When capacity is insufficient, the current namespace keeps its
   soonest-firing requests and reports overflow.
+- All in-process namespace reconciliations share one serialized mutation queue;
+  two features cannot each decide from the same stale capacity snapshot.
+- Immediate event notifications use a separate non-reconciled API. They check
+  current authorization, never prompt, and cannot be replayed by schedule refresh.
 - The package delegate always completes the system callback. It extracts a
   Sendable response first, then routes on the main actor. It never opens a URL
   or performs navigation itself.
@@ -59,9 +63,11 @@ Ivens' Apple app portfolio.
 - Zero third-party and zero studio-kit dependencies. UserNotifications and
   Foundation only, with a UIKit-gated Settings URL convenience.
 - Keep one library target. Do not add a NotificationKitUI target.
-- Every authorization, identifier, reconciliation, category, or routing change
-  requires focused Swift Testing coverage against an injected notification
-  center. Tests must never schedule real notifications.
+- Every authorization, identifier, reconciliation, immediate-submission,
+  category, or routing change requires focused Swift Testing coverage against
+  an injected notification center. Tests must never schedule real notifications.
+- Delegate changes require a background-entry regression test proving both
+  routing and the system completion callback execute on the main thread.
 - Keep `.agents/skills/integrate-notificationkit/SKILL.md` aligned with the
   public API and migration order.
 - Keep product-playbook's `notification-kit-lint` aligned with the public SPM

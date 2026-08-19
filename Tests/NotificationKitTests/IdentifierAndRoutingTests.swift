@@ -2,6 +2,7 @@ import Testing
 import UserNotifications
 @_spi(Testing) @testable import NotificationKit
 
+@MainActor
 struct IdentifierAndRoutingTests {
     @Test
     func identifiersAreStableAndNamespaceScoped() throws {
@@ -55,4 +56,37 @@ struct IdentifierAndRoutingTests {
         #expect(response.source == .unmanaged(identifier: "remote.apns"))
         #expect(response.action == .textInput(id: "reply", text: "Done"))
     }
+
+    @Test
+    func responseRoutingAndSystemCompletionReturnToMainThread() async {
+        let response = NotificationResponse(
+            source: .unmanaged(identifier: "remote.apns"),
+            action: .defaultTap,
+            payload: [:]
+        )
+        let recorder = CallbackThreadRecorder()
+
+        let completionWasOnMainThread = await withCheckedContinuation {
+            continuation in
+            DispatchQueue.global().async {
+                NotificationCenterDelegateAdapter.completeResponse(
+                    response,
+                    route: { _ in
+                        recorder.routeWasOnMainThread = Thread.isMainThread
+                    },
+                    completionHandler: {
+                        continuation.resume(returning: Thread.isMainThread)
+                    }
+                )
+            }
+        }
+
+        #expect(recorder.routeWasOnMainThread)
+        #expect(completionWasOnMainThread)
+    }
+}
+
+@MainActor
+private final class CallbackThreadRecorder {
+    var routeWasOnMainThread = false
 }

@@ -47,12 +47,42 @@ public struct ScheduledNotificationRequest: Sendable, Equatable {
 }
 
 @_spi(Testing)
+public struct ImmediateNotificationRequest: Sendable, Equatable {
+    public let identifier: String
+    public let title: String
+    public let subtitle: String
+    public let body: String
+    public let threadIdentifier: String?
+    public let categoryIdentifier: String?
+    public let payload: [String: String]
+
+    public init(
+        identifier: String,
+        title: String,
+        subtitle: String,
+        body: String,
+        threadIdentifier: String?,
+        categoryIdentifier: String?,
+        payload: [String: String]
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.subtitle = subtitle
+        self.body = body
+        self.threadIdentifier = threadIdentifier
+        self.categoryIdentifier = categoryIdentifier
+        self.payload = payload
+    }
+}
+
+@_spi(Testing)
 public protocol NotificationCenterServicing: Sendable {
     func authorization() async -> NotificationAuthorization
     func requestAuthorization() async throws -> Bool
     func pendingNotifications() async -> [PendingNotificationSnapshot]
     func deliveredNotificationIdentifiers() async -> [String]
     func schedule(_ request: ScheduledNotificationRequest) async throws
+    func submitImmediately(_ request: ImmediateNotificationRequest) async throws
     func removePendingNotificationRequests(withIdentifiers identifiers: [String]) async
     func removeDeliveredNotifications(withIdentifiers identifiers: [String]) async
     func registerCategories(_ categories: [NotificationCategorySpec]) async
