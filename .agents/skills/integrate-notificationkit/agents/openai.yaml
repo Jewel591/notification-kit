@@ -1,0 +1,4 @@
+interface:
+  display_name: "Integrate NotificationKit"
+  short_description: "Adopt the studio notification baseline safely"
+  default_prompt: "Use $integrate-notificationkit to adopt the studio notification baseline, migrate existing identifiers without duplicates, and preserve host-owned business rules and routing."
