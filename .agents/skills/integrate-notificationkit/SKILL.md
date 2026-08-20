@@ -185,8 +185,15 @@ load, after an explicit preference change, after authorization becomes
 deliverable, and when schedule inputs such as time zone or selected time change.
 Do not schedule requests directly alongside the Kit.
 
-Treat `.notLoaded` as the safe loading state. Using `.loaded([])` before
-preferences finish loading erases valid reminders by design.
+Treat `.notLoaded` as the safe loading state. It does not supersede a valid
+reconciliation already in flight. Invalid desired sets are rejected with the
+same non-superseding behavior. Using `.loaded([])` before preferences finish
+loading erases valid pending reminders by design.
+
+Reconciliation owns future pending schedules only. It never removes delivered
+notifications, including when a feature is disabled or authorization becomes
+unavailable. Do not keep a triggered one-shot ID in the desired set merely to
+preserve notification-center history; doing so would schedule it again.
 
 ## Submit event notifications separately
 
@@ -235,6 +242,9 @@ between system submission and receipt persistence can still duplicate.
 Do not call `removeAllPendingNotificationRequests()` or
 `removeAllDeliveredNotifications()`. NotificationKit deliberately preserves
 other namespaces, other Kit consumers, and unmanaged APNs/product requests.
+Legacy prefixes must refer only to pre-Kit host identifier families; prefixes
+rooted at `NotificationKit.` or `NotificationKitImmediate.` are rejected to
+prevent one namespace from adopting another namespace's requests.
 
 ## Register actions once
 
@@ -267,7 +277,8 @@ The Kit provides data only; navigation remains host-owned.
 Run focused tests proving:
 
 - loading state cannot wipe pending requests;
-- disabling a feature clears only its namespace;
+- disabling a feature clears only pending requests in its namespace and
+  preserves delivered notification history;
 - a denied status never triggers another system prompt;
 - the host toggle and OS authorization render an honest recovery state;
 - legacy IDs are replaced without duplicate delivery;

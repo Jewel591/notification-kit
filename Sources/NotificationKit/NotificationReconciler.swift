@@ -23,6 +23,16 @@ actor NotificationReconciler {
         namespace: NotificationNamespace,
         desired: NotificationDesiredSet
     ) async -> ReconciliationReport {
+        guard case let .loaded(notifications) = desired else {
+            return ReconciliationReport(disposition: .notLoaded)
+        }
+
+        let ids = notifications.map(\.id)
+        guard Set(ids).count == ids.count,
+              notifications.allSatisfy({ $0.trigger.validate() }) else {
+            return ReconciliationReport(disposition: .invalidDesiredSet)
+        }
+
         let generation = (generations[namespace.id] ?? 0) &+ 1
         generations[namespace.id] = generation
 
@@ -31,7 +41,7 @@ actor NotificationReconciler {
             await previous?.value
             return await performReconciliation(
                 namespace: namespace,
-                desired: desired,
+                notifications: notifications,
                 generation: generation
             )
         }
@@ -43,21 +53,11 @@ actor NotificationReconciler {
 
     private func performReconciliation(
         namespace: NotificationNamespace,
-        desired: NotificationDesiredSet,
+        notifications: [DesiredNotification],
         generation: UInt64
     ) async -> ReconciliationReport {
         guard isCurrent(generation, namespace: namespace.id) else {
             return ReconciliationReport(disposition: .superseded)
-        }
-
-        guard case let .loaded(notifications) = desired else {
-            return ReconciliationReport(disposition: .notLoaded)
-        }
-
-        let ids = notifications.map(\.id)
-        guard Set(ids).count == ids.count,
-              notifications.allSatisfy({ $0.trigger.validate() }) else {
-            return ReconciliationReport(disposition: .invalidDesiredSet)
         }
 
         let authorization = await center.authorization()
@@ -72,16 +72,10 @@ actor NotificationReconciler {
 
         if !authorization.canSchedule {
             let ownedPending = pending.map(\.identifier).filter(namespace.owns)
-            let delivered = await center.deliveredNotificationIdentifiers()
-            guard isCurrent(generation, namespace: namespace.id) else {
-                return ReconciliationReport(disposition: .superseded)
-            }
-            let ownedDelivered = delivered.filter(namespace.owns)
             await center.removePendingNotificationRequests(withIdentifiers: ownedPending)
-            await center.removeDeliveredNotifications(withIdentifiers: ownedDelivered)
             return ReconciliationReport(
                 disposition: .authorizationUnavailable(authorization),
-                removed: Array(Set(ownedPending + ownedDelivered)).sorted()
+                removed: Array(Set(ownedPending)).sorted()
             )
         }
 
@@ -135,19 +129,6 @@ actor NotificationReconciler {
             await center.removePendingNotificationRequests(withIdentifiers: toRemove)
         }
 
-        let delivered = await center.deliveredNotificationIdentifiers()
-        guard isCurrent(generation, namespace: namespace.id) else {
-            return ReconciliationReport(disposition: .superseded)
-        }
-        let deliveredToRemove = delivered.filter {
-            namespace.owns($0)
-                && (!desiredIdentifiers.contains($0)
-                    || !$0.hasPrefix(namespace.identifierPrefix))
-        }
-        if !deliveredToRemove.isEmpty {
-            await center.removeDeliveredNotifications(withIdentifiers: deliveredToRemove)
-        }
-
         var scheduled: [String] = []
         var unchanged: [String] = []
         var failed: [String] = []
@@ -170,7 +151,7 @@ actor NotificationReconciler {
         return ReconciliationReport(
             disposition: .reconciled,
             scheduled: scheduled.sorted(),
-            removed: Array(Set(toRemove + deliveredToRemove)).sorted(),
+            removed: Array(Set(toRemove)).sorted(),
             unchanged: unchanged.sorted(),
             overflow: overflow,
             failed: failed.sorted()

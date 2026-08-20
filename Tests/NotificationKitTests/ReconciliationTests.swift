@@ -21,7 +21,7 @@ struct ReconciliationTests {
     }
 
     @Test
-    func loadedEmptyClearsOnlyItsNamespace() async throws {
+    func loadedEmptyClearsOnlyPendingRequestsInItsNamespace() async throws {
         let center = TestNotificationCenter()
         await center.configure(
             pending: [
@@ -38,20 +38,25 @@ struct ReconciliationTests {
 
         #expect(report.disposition == .reconciled)
         #expect(await center.removedPending == ["NotificationKit.daily.old"])
-        #expect(await center.removedDelivered == ["NotificationKit.daily.delivered"])
         #expect(await center.pending.map(\.identifier).sorted() == [
             "NotificationKit.other.keep", "host.keep"
+        ])
+        #expect(await center.delivered.sorted() == [
+            "NotificationKit.daily.delivered", "host.delivered"
         ])
     }
 
     @Test
-    func reconciliationPreservesImmediateNotificationsInTheSameNamespace() async throws {
+    func reconciliationPreservesAllDeliveredNotificationsInTheSameNamespace() async throws {
         let center = TestNotificationCenter()
         await center.configure(
             pending: [PendingNotificationSnapshot(
                 identifier: "NotificationKit.daily.scheduled"
             )],
-            delivered: ["NotificationKitImmediate.daily.completed"]
+            delivered: [
+                "NotificationKit.daily.one-shot",
+                "NotificationKitImmediate.daily.completed",
+            ]
         )
         let client = NotificationClient(testingCenter: center, router: TestRouter())
 
@@ -61,7 +66,10 @@ struct ReconciliationTests {
         )
 
         #expect(report.removed == ["NotificationKit.daily.scheduled"])
-        #expect(await center.removedDelivered.isEmpty)
+        #expect(await center.delivered.sorted() == [
+            "NotificationKit.daily.one-shot",
+            "NotificationKitImmediate.daily.completed",
+        ])
     }
 
     @Test
@@ -144,13 +152,14 @@ struct ReconciliationTests {
     }
 
     @Test
-    func deniedAuthorizationClearsNamespaceWithoutRequestingPermission() async throws {
+    func deniedAuthorizationClearsPendingButPreservesDeliveredHistory() async throws {
         let center = TestNotificationCenter()
         await center.configure(
             authorization: .denied,
             pending: [PendingNotificationSnapshot(
                 identifier: "NotificationKit.daily.morning"
-            )]
+            )],
+            delivered: ["NotificationKit.daily.previous"]
         )
         let client = NotificationClient(testingCenter: center, router: TestRouter())
 
@@ -162,6 +171,7 @@ struct ReconciliationTests {
         #expect(report.disposition == .authorizationUnavailable(.denied))
         #expect(await center.requestCount == 0)
         #expect(await center.removedPending == ["NotificationKit.daily.morning"])
+        #expect(await center.delivered == ["NotificationKit.daily.previous"])
     }
 
     @Test
@@ -240,6 +250,54 @@ struct ReconciliationTests {
         #expect(disable.disposition == .reconciled)
         #expect(await center.pending.isEmpty)
         #expect(await center.scheduled.isEmpty)
+    }
+
+    @Test
+    func notLoadedDoesNotSupersedeAnOverlappingValidRefresh() async throws {
+        let center = TestNotificationCenter()
+        await center.configure(pendingDelayNanoseconds: 100_000_000)
+        let client = NotificationClient(testingCenter: center, router: TestRouter())
+        let namespace = try NotificationNamespace("daily")
+        let desired = try makeDesired(id: "new")
+
+        let refresh = Task {
+            await client.reconcile(
+                namespace: namespace,
+                desired: .loaded([desired])
+            )
+        }
+        try await Task.sleep(nanoseconds: 10_000_000)
+        let loading = await client.reconcile(namespace: namespace, desired: .notLoaded)
+
+        #expect(loading.disposition == .notLoaded)
+        #expect(await refresh.value.disposition == .reconciled)
+        #expect(await center.pending.map(\.identifier) == ["NotificationKit.daily.new"])
+    }
+
+    @Test
+    func invalidDesiredSetDoesNotSupersedeAnOverlappingValidRefresh() async throws {
+        let center = TestNotificationCenter()
+        await center.configure(pendingDelayNanoseconds: 100_000_000)
+        let client = NotificationClient(testingCenter: center, router: TestRouter())
+        let namespace = try NotificationNamespace("daily")
+        let desired = try makeDesired(id: "new")
+        let duplicate = try makeDesired(id: "duplicate")
+
+        let refresh = Task {
+            await client.reconcile(
+                namespace: namespace,
+                desired: .loaded([desired])
+            )
+        }
+        try await Task.sleep(nanoseconds: 10_000_000)
+        let invalid = await client.reconcile(
+            namespace: namespace,
+            desired: .loaded([duplicate, duplicate])
+        )
+
+        #expect(invalid.disposition == .invalidDesiredSet)
+        #expect(await refresh.value.disposition == .reconciled)
+        #expect(await center.pending.map(\.identifier) == ["NotificationKit.daily.new"])
     }
 
     @Test

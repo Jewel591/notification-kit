@@ -18,7 +18,6 @@ actor TestNotificationCenter: NotificationCenterServicing {
     var scheduled: [ScheduledNotificationRequest] = []
     var immediateSubmissions: [ImmediateNotificationRequest] = []
     var removedPending: [String] = []
-    var removedDelivered: [String] = []
     var categories: [NotificationCategorySpec] = []
     var failingIdentifiers: Set<String> = []
 
@@ -46,10 +45,6 @@ actor TestNotificationCenter: NotificationCenterServicing {
         return snapshot
     }
 
-    func deliveredNotificationIdentifiers() async -> [String] {
-        delivered
-    }
-
     func schedule(_ request: ScheduledNotificationRequest) async throws {
         if failingIdentifiers.contains(request.identifier) {
             throw TestCenterError.schedulingFailed
@@ -72,11 +67,6 @@ actor TestNotificationCenter: NotificationCenterServicing {
     func removePendingNotificationRequests(withIdentifiers identifiers: [String]) async {
         removedPending.append(contentsOf: identifiers)
         pending.removeAll { identifiers.contains($0.identifier) }
-    }
-
-    func removeDeliveredNotifications(withIdentifiers identifiers: [String]) async {
-        removedDelivered.append(contentsOf: identifiers)
-        delivered.removeAll { identifiers.contains($0) }
     }
 
     func replaceCategories(_ categories: [NotificationCategorySpec]) async {

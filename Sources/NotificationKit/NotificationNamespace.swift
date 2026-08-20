@@ -4,6 +4,7 @@ public enum NotificationIdentifierError: Error, Sendable, Equatable {
     case invalidNamespace(String)
     case invalidNotificationID(String)
     case duplicateNotificationID(String)
+    case invalidLegacyPrefix(String)
 }
 
 public struct NotificationNamespace: Hashable, Sendable {
@@ -14,8 +15,14 @@ public struct NotificationNamespace: Hashable, Sendable {
         guard Self.isValidNamespace(id) else {
             throw NotificationIdentifierError.invalidNamespace(id)
         }
+        let normalizedLegacyPrefixes = Array(
+            Set(legacyPrefixes.filter { !$0.isEmpty })
+        ).sorted()
+        if let invalidPrefix = normalizedLegacyPrefixes.first(where: Self.isManagedPrefix) {
+            throw NotificationIdentifierError.invalidLegacyPrefix(invalidPrefix)
+        }
         self.id = id
-        self.legacyPrefixes = Array(Set(legacyPrefixes.filter { !$0.isEmpty })).sorted()
+        self.legacyPrefixes = normalizedLegacyPrefixes
     }
 
     public var identifierPrefix: String {
@@ -54,6 +61,13 @@ public struct NotificationNamespace: Hashable, Sendable {
         !value.isEmpty && value.unicodeScalars.allSatisfy {
             CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_"
         }
+    }
+
+    private static func isManagedPrefix(_ value: String) -> Bool {
+        value == "NotificationKit"
+            || value.hasPrefix("NotificationKit.")
+            || value == "NotificationKitImmediate"
+            || value.hasPrefix("NotificationKitImmediate.")
     }
 
     private static func isValidHostID(_ value: String) -> Bool {

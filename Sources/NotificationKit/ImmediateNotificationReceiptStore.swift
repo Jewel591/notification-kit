@@ -12,6 +12,7 @@ final class UserDefaultsImmediateNotificationReceiptStore:
 
     private let defaults: UserDefaults
     private let now: () -> Date
+    private var volatileRecoveryReceipts: [String: TimeInterval] = [:]
 
     init(
         defaults: UserDefaults = .standard,
@@ -22,39 +23,65 @@ final class UserDefaultsImmediateNotificationReceiptStore:
     }
 
     func contains(_ identifier: String) -> Bool {
-        let receipts = loadAndPrune()
-        let contains = receipts[identifier] != nil
-        persist(receipts)
-        return contains
+        switch loadAndPrune() {
+        case let .loaded(receipts):
+            persist(receipts)
+            return receipts[identifier] != nil
+        case .unreadable:
+            pruneVolatileRecoveryReceipts()
+            return volatileRecoveryReceipts[identifier] != nil
+        }
     }
 
     func insert(_ identifier: String) {
-        var receipts = loadAndPrune()
-        receipts[identifier] = now().timeIntervalSince1970
-        if receipts.count > Policy.maximumCount {
-            let overflow = receipts.count - Policy.maximumCount
-            for key in receipts.sorted(by: { $0.value < $1.value })
-                .prefix(overflow)
-                .map(\.key)
-            {
-                receipts.removeValue(forKey: key)
-            }
+        switch loadAndPrune() {
+        case var .loaded(receipts):
+            receipts[identifier] = now().timeIntervalSince1970
+            trimToMaximumCount(&receipts)
+            persist(receipts)
+        case .unreadable:
+            pruneVolatileRecoveryReceipts()
+            volatileRecoveryReceipts[identifier] = now().timeIntervalSince1970
+            trimToMaximumCount(&volatileRecoveryReceipts)
         }
-        persist(receipts)
     }
 
-    private func loadAndPrune() -> [String: TimeInterval] {
-        guard let data = defaults.data(forKey: Policy.key),
-              var receipts = try? JSONDecoder().decode(
-                  [String: TimeInterval].self,
-                  from: data
-              )
-        else {
-            return [:]
+    private enum LoadResult {
+        case loaded([String: TimeInterval])
+        case unreadable
+    }
+
+    private func loadAndPrune() -> LoadResult {
+        guard let data = defaults.data(forKey: Policy.key) else {
+            return .loaded([:])
+        }
+        guard var receipts = try? JSONDecoder().decode(
+            [String: TimeInterval].self,
+            from: data
+        ) else {
+            return .unreadable
         }
         let cutoff = now().timeIntervalSince1970 - Policy.retention
         receipts = receipts.filter { $0.value >= cutoff }
-        return receipts
+        return .loaded(receipts)
+    }
+
+    private func pruneVolatileRecoveryReceipts() {
+        let cutoff = now().timeIntervalSince1970 - Policy.retention
+        volatileRecoveryReceipts = volatileRecoveryReceipts.filter {
+            $0.value >= cutoff
+        }
+    }
+
+    private func trimToMaximumCount(_ receipts: inout [String: TimeInterval]) {
+        guard receipts.count > Policy.maximumCount else { return }
+        let overflow = receipts.count - Policy.maximumCount
+        for key in receipts.sorted(by: { $0.value < $1.value })
+            .prefix(overflow)
+            .map(\.key)
+        {
+            receipts.removeValue(forKey: key)
+        }
     }
 
     private func persist(_ receipts: [String: TimeInterval]) {

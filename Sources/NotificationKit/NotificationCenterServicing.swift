@@ -80,11 +80,9 @@ public protocol NotificationCenterServicing: Sendable {
     func authorization() async -> NotificationAuthorization
     func requestAuthorization() async throws -> Bool
     func pendingNotifications() async -> [PendingNotificationSnapshot]
-    func deliveredNotificationIdentifiers() async -> [String]
     func schedule(_ request: ScheduledNotificationRequest) async throws
     func submitImmediately(_ request: ImmediateNotificationRequest) async throws
     func removePendingNotificationRequests(withIdentifiers identifiers: [String]) async
-    func removeDeliveredNotifications(withIdentifiers identifiers: [String]) async
     func replaceCategories(_ categories: [NotificationCategorySpec]) async
 
     @MainActor

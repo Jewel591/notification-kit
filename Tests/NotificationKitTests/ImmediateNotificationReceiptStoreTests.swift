@@ -55,6 +55,24 @@ struct ImmediateNotificationReceiptStoreTests {
         #expect(store.contains("event-512"))
     }
 
+    @Test func unreadableLedgerIsPreservedAndUsesProcessLocalRecovery() {
+        let (defaults, suiteName) = makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let key = "com.jewel591.NotificationKit.immediateReceipts.v1"
+        let unreadableData = Data("not-json".utf8)
+        defaults.set(unreadableData, forKey: key)
+        let store = UserDefaultsImmediateNotificationReceiptStore(
+            defaults: defaults,
+            now: { Date(timeIntervalSince1970: 4_000_000) }
+        )
+
+        #expect(!store.contains("event-a"))
+        store.insert("event-a")
+
+        #expect(store.contains("event-a"))
+        #expect(defaults.data(forKey: key) == unreadableData)
+    }
+
     private func makeDefaults() -> (UserDefaults, String) {
         let suiteName = "NotificationKitTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

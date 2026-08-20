@@ -32,13 +32,17 @@ and response routing across Ivens' Apple app portfolio.
   not belong in the public API without demonstrated cross-product divergence.
 - Authorization requests can only enter through
   `requestAuthorizationFromUserAction()` and are coalesced while in flight.
-- `.notLoaded` desired state is a no-op; `.loaded([])` deliberately clears that
-  namespace. This distinction prevents asynchronous loading from erasing valid
-  schedules.
+- `.notLoaded` and invalid desired sets are true no-ops: they neither mutate the
+  notification center nor supersede an already queued valid reconciliation.
+  `.loaded([])` deliberately clears pending requests in that namespace. This
+  distinction prevents asynchronous loading from erasing valid schedules.
 - The package only mutates its requested namespace and configured legacy
   prefixes. It never calls a remove-all API.
+- Reconciliation owns pending schedules only. It never withdraws delivered
+  notifications; notification-center history remains under user/system control.
 - Identifiers use `NotificationKit.<namespace>.<host-id>`. Legacy identifiers
-  are adopted during reconciliation and rewritten to package-owned IDs.
+  are adopted during reconciliation and rewritten to package-owned IDs. A
+  legacy prefix cannot overlap either package-managed identifier family.
 - The global 64-pending-request limit preserves requests outside the current
   namespace. When capacity is insufficient, the current namespace keeps its
   soonest-firing requests and reports overflow.
@@ -52,7 +56,9 @@ and response routing across Ivens' Apple app portfolio.
   or performs navigation itself.
 - Authorization is never persisted and no app-level `isEnabled` flag exists.
   The only package-owned UserDefaults state is the bounded immediate-event retry
-  receipt ledger; feature enablement remains host-owned.
+  receipt ledger; feature enablement remains host-owned. If that ledger cannot
+  be decoded, its raw data is preserved and process-local recovery receipts
+  prevent repeated submissions during the current launch.
 - Foreground presentation, default sound, identifier format, pending-request
   cap behavior, and delegate completion semantics are fixed house standards,
   not initializer configuration.

@@ -49,10 +49,6 @@ final class SystemNotificationCenterService: NotificationCenterServicing, @unche
         }
     }
 
-    func deliveredNotificationIdentifiers() async -> [String] {
-        await center.deliveredNotifications().map { $0.request.identifier }
-    }
-
     func schedule(_ request: ScheduledNotificationRequest) async throws {
         let content = Self.makeContent(
             identifier: request.identifier,
@@ -135,12 +131,6 @@ final class SystemNotificationCenterService: NotificationCenterServicing, @unche
         withIdentifiers identifiers: [String]
     ) async {
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
-    }
-
-    func removeDeliveredNotifications(
-        withIdentifiers identifiers: [String]
-    ) async {
-        center.removeDeliveredNotifications(withIdentifiers: identifiers)
     }
 
     func replaceCategories(_ categories: [NotificationCategorySpec]) async {

@@ -30,6 +30,26 @@ struct IdentifierAndRoutingTests {
     }
 
     @Test
+    func legacyPrefixesCannotAdoptManagedIdentifierFamilies() {
+        #expect(throws: NotificationIdentifierError.invalidLegacyPrefix(
+            "NotificationKit."
+        )) {
+            try NotificationNamespace(
+                "daily",
+                legacyPrefixes: ["NotificationKit."]
+            )
+        }
+        #expect(throws: NotificationIdentifierError.invalidLegacyPrefix(
+            "NotificationKitImmediate.other."
+        )) {
+            try NotificationNamespace(
+                "daily",
+                legacyPrefixes: ["NotificationKitImmediate.other."]
+            )
+        }
+    }
+
+    @Test
     func managedDefaultTapProducesTypedSource() {
         let response = NotificationCenterDelegateAdapter.makeResponse(
             identifier: "NotificationKit.daily.morning",

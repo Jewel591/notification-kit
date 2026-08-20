@@ -17,10 +17,14 @@ screens, navigation, analytics, and APNs infrastructure.
 - Authorization is never persisted or mirrored in an app-owned boolean. The
   shared client refreshes it initially and whenever the app becomes active.
 - `.notLoaded` means "the host has not produced its desired schedule yet" and
-  is a no-op. `.loaded([])` means "the desired schedule is empty" and clears
-  that namespace.
+  is a true no-op, including when a valid reconciliation is already queued.
+  Invalid desired sets are also non-superseding no-ops. `.loaded([])` means
+  "the desired schedule is empty" and clears pending requests in that namespace.
 - Reconciliation is namespace-scoped and never removes another feature's
   requests. Legacy prefixes can be adopted without leaving duplicate reminders.
+- Reconciliation never removes delivered notifications. Once the system has
+  delivered a notification, notification-center history belongs to the user and
+  the operating system, not the future-schedule reconciler.
 - Reconciliations across namespaces are serialized inside the Kit so every
   capacity decision sees the latest shared 64-request queue.
 - Event notifications use `submitImmediately`. They never enter a desired
@@ -102,7 +106,9 @@ let report = await notifications.reconcile(
 Use `.notLoaded` while asynchronous preferences/data are unresolved. Pass
 `.loaded([])` only when the host has authoritatively decided that no request
 should remain. Reconciliation never prompts; when authorization cannot deliver,
-it clears only the requested namespace and reports the reason.
+it clears only pending requests in the requested namespace and reports the
+reason. Delivered notifications are preserved in every reconciliation path,
+including disable and authorization-unavailable paths.
 
 ## Submit an event notification
 
