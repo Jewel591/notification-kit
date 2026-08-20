@@ -1,0 +1,104 @@
+import Foundation
+
+@_spi(Testing)
+public struct PendingNotificationSnapshot: Sendable, Equatable {
+    public let identifier: String
+    public let fingerprint: String?
+
+    public init(identifier: String, fingerprint: String? = nil) {
+        self.identifier = identifier
+        self.fingerprint = fingerprint
+    }
+}
+
+@_spi(Testing)
+public struct ScheduledNotificationRequest: Sendable, Equatable {
+    public let identifier: String
+    public let title: String
+    public let subtitle: String
+    public let body: String
+    public let threadIdentifier: String?
+    public let categoryIdentifier: String?
+    public let payload: [String: String]
+    public let trigger: NotificationTriggerSpec
+    public let fingerprint: String
+
+    public init(
+        identifier: String,
+        title: String,
+        subtitle: String,
+        body: String,
+        threadIdentifier: String?,
+        categoryIdentifier: String?,
+        payload: [String: String],
+        trigger: NotificationTriggerSpec,
+        fingerprint: String
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.subtitle = subtitle
+        self.body = body
+        self.threadIdentifier = threadIdentifier
+        self.categoryIdentifier = categoryIdentifier
+        self.payload = payload
+        self.trigger = trigger
+        self.fingerprint = fingerprint
+    }
+}
+
+@_spi(Testing)
+public struct ImmediateNotificationRequest: Sendable, Equatable {
+    public let identifier: String
+    public let title: String
+    public let subtitle: String
+    public let body: String
+    public let threadIdentifier: String?
+    public let categoryIdentifier: String?
+    public let payload: [String: String]
+
+    public init(
+        identifier: String,
+        title: String,
+        subtitle: String,
+        body: String,
+        threadIdentifier: String?,
+        categoryIdentifier: String?,
+        payload: [String: String]
+    ) {
+        self.identifier = identifier
+        self.title = title
+        self.subtitle = subtitle
+        self.body = body
+        self.threadIdentifier = threadIdentifier
+        self.categoryIdentifier = categoryIdentifier
+        self.payload = payload
+    }
+}
+
+@_spi(Testing)
+public protocol NotificationCenterServicing: Sendable {
+    func authorization() async -> NotificationAuthorization
+    func requestAuthorization() async throws -> Bool
+    func pendingNotifications() async -> [PendingNotificationSnapshot]
+    func schedule(_ request: ScheduledNotificationRequest) async throws
+    func submitImmediately(_ request: ImmediateNotificationRequest) async throws
+    func removePendingNotificationRequests(withIdentifiers identifiers: [String]) async
+    func replaceCategories(_ categories: [NotificationCategorySpec]) async
+
+    @MainActor
+    func installDelegate(router: (any NotificationResponseRouting)?)
+}
+
+@_spi(Testing)
+@MainActor
+public protocol NotificationLifecycleSourcing: AnyObject {
+    var becameActiveHandler: (() -> Void)? { get set }
+    func start()
+}
+
+@_spi(Testing)
+@MainActor
+public protocol ImmediateNotificationReceiptStoring: AnyObject {
+    func contains(_ identifier: String) -> Bool
+    func insert(_ identifier: String)
+}
