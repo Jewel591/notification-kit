@@ -274,20 +274,26 @@ The Kit provides data only; navigation remains host-owned.
 
 ## Verify the migration
 
-Run focused tests proving:
+Package tests own the fixed engine contracts: loading state cannot wipe requests,
+namespace isolation and shared-capacity concurrency, denied-status prompt
+suppression, immediate-event idempotency, unrelated/APNs preservation, delivered
+history semantics, and delegate main-thread completion. Run the package suite when
+changing those behaviors; do not copy those cases into every app.
 
-- loading state cannot wipe pending requests;
-- disabling a feature clears only pending requests in its namespace and
-  preserves delivered notification history;
-- a denied status never triggers another system prompt;
-- the host toggle and OS authorization render an honest recovery state;
-- legacy IDs are replaced without duplicate delivery;
-- unrelated and APNs identifiers survive reconciliation;
-- notification actions reach the expected app route;
-- immediate event notifications submit once and never prompt or enter desired state;
-- concurrent namespaces never make independent stale capacity decisions;
-- delegate routing and completion return to the main thread from a background callback;
-- no second delegate or direct scheduler remains.
+Run focused host tests proving only the app-owned seams:
+
+- the host toggle and OS authorization map to an honest recovery state;
+- every real shipped legacy ID/prefix migrates without duplicate delivery;
+- notification categories and actions reach the expected app route;
+- reminder eligibility, quiet-hours and desired-request construction match the
+  app's product rules;
+- APNs payload keys remain routed by the app where adopted.
+
+Do not read `project.pbxproj`, scan imports/source strings, or search for old
+scheduler/delegate type declarations in XCTest. `notification-kit-lint` owns
+those structural checks. Use a fake center and public APIs; never schedule a real
+OS notification in unit tests. If two apps copy the same helper or expectation,
+move the missing semantic behavior and its tests into NotificationKit.
 
 Finally run product-playbook's `notification-kit-lint`. Passing the structural
 lint does not prove runtime authorization, migration, routing, or localized copy;
