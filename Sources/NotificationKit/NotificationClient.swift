@@ -118,7 +118,7 @@ public final class NotificationClient {
     ) async -> ImmediateSubmissionOutcome {
         let identifier: String
         do {
-            identifier = try namespace.identifier(for: notification.id)
+            identifier = try namespace.immediateIdentifier(for: notification.id)
         } catch {
             return .failed(identifier: notification.id)
         }

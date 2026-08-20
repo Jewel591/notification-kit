@@ -45,6 +45,26 @@ struct ReconciliationTests {
     }
 
     @Test
+    func reconciliationPreservesImmediateNotificationsInTheSameNamespace() async throws {
+        let center = TestNotificationCenter()
+        await center.configure(
+            pending: [PendingNotificationSnapshot(
+                identifier: "NotificationKit.daily.scheduled"
+            )],
+            delivered: ["NotificationKitImmediate.daily.completed"]
+        )
+        let client = NotificationClient(testingCenter: center, router: TestRouter())
+
+        let report = await client.reconcile(
+            namespace: try NotificationNamespace("daily"),
+            desired: .loaded([])
+        )
+
+        #expect(report.removed == ["NotificationKit.daily.scheduled"])
+        #expect(await center.removedDelivered.isEmpty)
+    }
+
+    @Test
     func unchangedFingerprintDoesNotReschedule() async throws {
         let desired = try makeDesired(id: "morning")
         let fingerprint = NotificationFingerprint.make(for: desired)

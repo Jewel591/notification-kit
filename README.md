@@ -128,6 +128,9 @@ deduplication. Successful IDs are retained for 90 days, capped at the newest
 durable retry idempotency, not a cross-process exactly-once guarantee: a process
 crash between system submission and receipt persistence can still duplicate.
 Do not model an immediate event as a one-second desired schedule.
+Immediate requests use a distinct managed identifier family, so reconciliation
+for the same namespace cannot remove a delivered event notification or replace
+a future scheduled request with a nil-trigger request.
 
 ## Categories and responses
 

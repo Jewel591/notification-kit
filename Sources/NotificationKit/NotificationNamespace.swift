@@ -22,11 +22,22 @@ public struct NotificationNamespace: Hashable, Sendable {
         "NotificationKit.\(id)."
     }
 
+    var immediateIdentifierPrefix: String {
+        "NotificationKitImmediate.\(id)."
+    }
+
     public func identifier(for hostID: String) throws -> String {
         guard Self.isValidHostID(hostID) else {
             throw NotificationIdentifierError.invalidNotificationID(hostID)
         }
         return identifierPrefix + hostID
+    }
+
+    func immediateIdentifier(for hostID: String) throws -> String {
+        guard Self.isValidHostID(hostID) else {
+            throw NotificationIdentifierError.invalidNotificationID(hostID)
+        }
+        return immediateIdentifierPrefix + hostID
     }
 
     func owns(_ identifier: String) -> Bool {

@@ -44,8 +44,9 @@ narrow enough to identify only that feature's existing requests.
 
 Add `https://github.com/Jewel591/notification-kit` using an up-to-next-major
 version requirement and link the `NotificationKit` product to the application
-target. Link extension targets only when they author the same local schedule;
-all processes must use the same namespace and stable host IDs.
+target. Link extension targets only when they submit one-shot immediate events
+through `NotificationClient.shared`; extensions must not author desired
+schedules. All processes must use stable namespaces and host IDs.
 
 Do not use an exact version, branch, revision, local path, copied source, or a
 second notification wrapper.
@@ -210,6 +211,10 @@ Use a stable event ID or a genuine event UUID. Do not manufacture a timestamp
 solely to force duplicates. Never place immediate events in
 `NotificationDesiredSet`; reconciliation represents future desired state and
 must remain safely repeatable.
+
+Immediate requests use `NotificationKitImmediate.<namespace>.<id>`, while
+reconciled schedules retain `NotificationKit.<namespace>.<id>`. Do not
+construct either identifier family in host code.
 
 Successful event IDs are persisted for the Kit's fixed 90-day/512-entry window;
 normal task and App Intent retries return `.alreadySubmitted`. Treat this as

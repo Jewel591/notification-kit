@@ -53,8 +53,10 @@ final class NotificationCenterDelegateAdapter: NSObject, UNUserNotificationCente
     static func parseManagedIdentifier(
         _ identifier: String
     ) -> (namespace: String, id: String)? {
-        let prefix = "NotificationKit."
-        guard identifier.hasPrefix(prefix) else { return nil }
+        let prefixes = ["NotificationKit.", "NotificationKitImmediate."]
+        guard let prefix = prefixes.first(where: identifier.hasPrefix) else {
+            return nil
+        }
         let remainder = identifier.dropFirst(prefix.count)
         guard let separator = remainder.firstIndex(of: ".") else { return nil }
         let namespace = String(remainder[..<separator])

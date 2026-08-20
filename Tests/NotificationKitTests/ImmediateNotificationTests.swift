@@ -26,7 +26,7 @@ struct ImmediateNotificationTests {
         )
 
         #expect(outcome == .submitted(
-            identifier: "NotificationKit.imports.import-complete-42"
+            identifier: "NotificationKitImmediate.imports.import-complete-42"
         ))
         #expect(await center.immediateSubmissions.count == 1)
         #expect(await center.immediateSubmissions.first?.payload == [
@@ -34,7 +34,7 @@ struct ImmediateNotificationTests {
         ])
         #expect(await center.pending.isEmpty)
         #expect(receipts.identifiers == [
-            "NotificationKit.imports.import-complete-42"
+            "NotificationKitImmediate.imports.import-complete-42"
         ])
     }
 
@@ -69,11 +69,11 @@ struct ImmediateNotificationTests {
         )
 
         #expect(concurrent == [
-            .submitted(identifier: "NotificationKit.imports.complete-42"),
-            .submitted(identifier: "NotificationKit.imports.complete-42"),
+            .submitted(identifier: "NotificationKitImmediate.imports.complete-42"),
+            .submitted(identifier: "NotificationKitImmediate.imports.complete-42"),
         ])
         #expect(retry == .alreadySubmitted(
-            identifier: "NotificationKit.imports.complete-42"
+            identifier: "NotificationKitImmediate.imports.complete-42"
         ))
         #expect(await center.immediateSubmissions.count == 1)
     }
@@ -102,7 +102,7 @@ struct ImmediateNotificationTests {
     func immediateSubmissionReportsCenterFailure() async throws {
         let center = TestNotificationCenter()
         await center.configure(failingIdentifiers: [
-            "NotificationKit.imports.complete"
+            "NotificationKitImmediate.imports.complete"
         ])
         let client = NotificationClient(testingCenter: center)
 
@@ -116,7 +116,7 @@ struct ImmediateNotificationTests {
         )
 
         #expect(outcome == .failed(
-            identifier: "NotificationKit.imports.complete"
+            identifier: "NotificationKitImmediate.imports.complete"
         ))
         #expect(await center.immediateSubmissions.isEmpty)
     }

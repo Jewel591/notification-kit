@@ -45,6 +45,19 @@ struct IdentifierAndRoutingTests {
     }
 
     @Test
+    func immediateManagedTapProducesTypedSource() {
+        let response = NotificationCenterDelegateAdapter.makeResponse(
+            identifier: "NotificationKitImmediate.imports.complete-42",
+            actionIdentifier: UNNotificationDefaultActionIdentifier
+        )
+
+        #expect(response.source == .managed(
+            namespace: "imports",
+            id: "complete-42"
+        ))
+    }
+
+    @Test
     func unmanagedAndTextInputResponsesRemainRoutable() {
         let response = NotificationCenterDelegateAdapter.makeResponse(
             identifier: "remote.apns",
