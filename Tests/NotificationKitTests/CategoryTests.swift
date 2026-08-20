@@ -15,7 +15,7 @@ struct CategoryTests {
             options: [.customDismissAction]
         )
 
-        await client.registerCategories([category])
+        await client.replaceCategories([category])
 
         #expect(await center.categories == [category])
     }

@@ -14,8 +14,8 @@ screens, navigation, analytics, and APNs infrastructure.
 - Permission is requested only by an explicit call to
   `requestAuthorizationFromUserAction()`. Launch, reconciliation, initialization,
   `onAppear`, and automatic tasks never prompt.
-- Authorization is never persisted or mirrored in an app-owned boolean. Call
-  `refreshAuthorization()` when the app becomes active.
+- Authorization is never persisted or mirrored in an app-owned boolean. The
+  shared client refreshes it initially and whenever the app becomes active.
 - `.notLoaded` means "the host has not produced its desired schedule yet" and
   is a no-op. `.loaded([])` means "the desired schedule is empty" and clears
   that namespace.
@@ -41,17 +41,15 @@ final class AppNotificationRouter: NotificationResponseRouting {
 }
 
 let router = AppNotificationRouter()
-let notifications = NotificationKit.NotificationClient(router: router)
-
-// Refresh on initial composition and whenever scenePhase becomes .active.
-await notifications.refreshAuthorization()
+let notifications = NotificationKit.NotificationClient.shared
+notifications.setResponseRouter(router)
 ```
 
-The client retains the router for its lifetime. Keep the client at the app
-composition root; do not construct another notification client per screen.
-When a process has no notification-tap route—typically a Widget/App Intent
-extension that only reconciles a shared schedule—use `NotificationClient()`;
-do not create a no-op router.
+The shared client retains the router, refreshes authorization on construction,
+and refreshes again whenever the process becomes active. It is the only
+production client and the main App is the sole reconciliation/category writer.
+Extensions may submit one-shot events through `.shared`, but must not reconcile
+the shared pending queue or install a second response router.
 The system-center adapter is intentionally not public API. A narrowly named
 `Testing` SPI exists for deterministic host tests; it is not an alternate
 production wiring path or a policy configuration surface.
@@ -65,7 +63,9 @@ immediate benefit:
 let outcome = await notifications.requestAuthorizationFromUserAction()
 ```
 
-The fixed portfolio policy requests alert and sound access. Badge,
+The fixed portfolio policy requests alert and sound access. The returned
+authorization value also exposes the actual alert and sound settings so UI can
+honestly distinguish partial system configuration. Badge,
 critical-alert, and provisional capabilities are deliberately not configurable
 or requested speculatively. A denied status returns `.needsSettings` without
 calling the system request API again.
@@ -123,11 +123,16 @@ let outcome = await notifications.submitImmediately(
 
 This API reads authorization but never prompts. Use a stable event identity or
 a genuine event UUID as `id`; do not use the current timestamp merely to bypass
-deduplication. Do not model an immediate event as a one-second desired schedule.
+deduplication. Successful IDs are retained for 90 days, capped at the newest
+512, so ordinary task/App Intent retries return `.alreadySubmitted`. This is
+durable retry idempotency, not a cross-process exactly-once guarantee: a process
+crash between system submission and receipt persistence can still duplicate.
+Do not model an immediate event as a one-second desired schedule.
 
 ## Categories and responses
 
-Register typed category specifications at composition time, before scheduling
+Replace the complete typed category set at composition time with
+`replaceCategories(_:)`, before scheduling
 notifications that reference them. NotificationKit installs one
 `UNUserNotificationCenterDelegate`, presents foreground notifications using the
 portfolio default (banner, list, and sound), and routes both package-owned and

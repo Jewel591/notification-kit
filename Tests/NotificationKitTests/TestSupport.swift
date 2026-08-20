@@ -10,6 +10,7 @@ actor TestNotificationCenter: NotificationCenterServicing {
     var currentAuthorization: NotificationAuthorization = .authorized
     var requestResult = true
     var requestDelayNanoseconds: UInt64 = 0
+    var authorizationDelayNanoseconds: UInt64 = 0
     var requestCount = 0
     var pendingDelayNanoseconds: UInt64 = 0
     var pending: [PendingNotificationSnapshot] = []
@@ -22,7 +23,10 @@ actor TestNotificationCenter: NotificationCenterServicing {
     var failingIdentifiers: Set<String> = []
 
     func authorization() async -> NotificationAuthorization {
-        currentAuthorization
+        if authorizationDelayNanoseconds > 0 {
+            try? await Task.sleep(nanoseconds: authorizationDelayNanoseconds)
+        }
+        return currentAuthorization
     }
 
     func requestAuthorization() async throws -> Bool {
@@ -75,7 +79,7 @@ actor TestNotificationCenter: NotificationCenterServicing {
         delivered.removeAll { identifiers.contains($0) }
     }
 
-    func registerCategories(_ categories: [NotificationCategorySpec]) async {
+    func replaceCategories(_ categories: [NotificationCategorySpec]) async {
         self.categories = categories
     }
 
@@ -84,6 +88,7 @@ actor TestNotificationCenter: NotificationCenterServicing {
 
     func configure(
         authorization: NotificationAuthorization? = nil,
+        authorizationDelayNanoseconds: UInt64? = nil,
         requestResult: Bool? = nil,
         requestDelayNanoseconds: UInt64? = nil,
         pendingDelayNanoseconds: UInt64? = nil,
@@ -92,6 +97,9 @@ actor TestNotificationCenter: NotificationCenterServicing {
         failingIdentifiers: Set<String>? = nil
     ) {
         if let authorization { currentAuthorization = authorization }
+        if let authorizationDelayNanoseconds {
+            self.authorizationDelayNanoseconds = authorizationDelayNanoseconds
+        }
         if let requestResult { self.requestResult = requestResult }
         if let requestDelayNanoseconds {
             self.requestDelayNanoseconds = requestDelayNanoseconds
@@ -102,6 +110,33 @@ actor TestNotificationCenter: NotificationCenterServicing {
         if let pending { self.pending = pending }
         if let delivered { self.delivered = delivered }
         if let failingIdentifiers { self.failingIdentifiers = failingIdentifiers }
+    }
+}
+
+@MainActor
+final class TestNotificationLifecycleSource: NotificationLifecycleSourcing {
+    var becameActiveHandler: (() -> Void)?
+    private(set) var startCount = 0
+
+    func start() {
+        startCount += 1
+    }
+
+    func sendBecameActive() {
+        becameActiveHandler?()
+    }
+}
+
+@MainActor
+final class TestImmediateReceiptStore: ImmediateNotificationReceiptStoring {
+    var identifiers: Set<String> = []
+
+    func contains(_ identifier: String) -> Bool {
+        identifiers.contains(identifier)
+    }
+
+    func insert(_ identifier: String) {
+        identifiers.insert(identifier)
     }
 }
 

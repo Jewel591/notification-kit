@@ -52,9 +52,9 @@ second notification wrapper.
 
 ## Use the one composition-root path
 
-Create one app router. Construct and strongly retain one module-qualified
-client; initialization installs the package's sole notification-center
-delegate automatically.
+Create one app router and install it into the module-qualified shared client.
+The Kit constructs the sole production client and installs the package's sole
+notification-center delegate automatically.
 
 ```swift
 import NotificationKit
@@ -83,24 +83,23 @@ final class AppNotificationRouter: NotificationResponseRouting {
 
 @MainActor
 struct AppNotifications {
-    let client: NotificationKit.NotificationClient
+    let client = NotificationKit.NotificationClient.shared
 
     init(routes: AppRouteStore) {
-        let router = AppNotificationRouter(routes: routes)
-        client = NotificationKit.NotificationClient(router: router)
+        client.setResponseRouter(AppNotificationRouter(routes: routes))
     }
 }
 ```
 
-The client retains the router. Keep the client at the composition root. Remove
+The shared client retains the router. Keep its wiring at the composition root. Remove
 every other assignment to
 `UNUserNotificationCenter.current().delegate`; route existing APNs responses
 through `.unmanaged` instead of adding a second delegate.
 
-Processes with no response route, such as a Widget/App Intent extension that
-only authors the same local schedule, construct `NotificationClient()` without
-a router. Link the package to that extension, use the exact same namespace and
-stable host IDs as the main App, and do not retain a second direct scheduler.
+The main App is the sole writer for desired-schedule reconciliation and category
+replacement. A Widget/App Intent extension may link the package only to call
+`NotificationClient.shared.submitImmediately(...)` for a completed event. It
+must not reconcile, replace categories, set a router, or keep a direct scheduler.
 
 The package's `Testing` SPI may be imported only by tests that need a fake
 notification center. Never use it in a production target or treat it as an
@@ -108,9 +107,10 @@ alternate wiring/configuration path.
 
 ## Refresh operating-system truth
 
-Call `refreshAuthorization()` once after composition and whenever the scene
+The shared client refreshes once at initialization and whenever the process
 becomes active. The OS status is authoritative because a person can change it
-in Settings while the app is backgrounded.
+in Settings while the app is backgrounded. Do not duplicate this lifecycle
+observer or expose a host-owned refresh policy.
 
 Do not persist or mirror authorization into UserDefaults. A host feature toggle
 may still represent the person's product preference, but it is not proof that
@@ -118,7 +118,7 @@ the OS can deliver. UI derives the effective state from both values:
 
 ```swift
 let canSchedule = reminderPreference.isEnabled
-    && notifications.authorization.canDeliver
+    && notifications.authorization.canSchedule
 ```
 
 If the preference is enabled while authorization is denied, show recovery UI;
@@ -134,6 +134,9 @@ The Kit always requests the studio-standard alert + sound capabilities. Do not
 add App-specific authorization options. Handle `.needsSettings` by offering a
 host-owned Settings CTA using `NotificationSettingsDestination.url` on UIKit
 platforms. The host opens the URL; the Kit does not.
+
+Render permission UI from the full `authorization` value: status alone is not
+enough because alert or sound can be disabled independently in Settings.
 
 Denial, restriction, and cancellation are normal states. Notification access
 must never be required to complete onboarding or use unrelated/core features.
@@ -208,6 +211,11 @@ solely to force duplicates. Never place immediate events in
 `NotificationDesiredSet`; reconciliation represents future desired state and
 must remain safely repeatable.
 
+Successful event IDs are persisted for the Kit's fixed 90-day/512-entry window;
+normal task and App Intent retries return `.alreadySubmitted`. Treat this as
+durable retry idempotency, not cross-process exactly-once delivery: a crash
+between system submission and receipt persistence can still duplicate.
+
 ## Migrate existing requests without duplicates
 
 1. Preserve each old feature's exact identifier prefix.
@@ -226,7 +234,9 @@ other namespaces, other Kit consumers, and unmanaged APNs/product requests.
 ## Register actions once
 
 Build localized `NotificationCategorySpec` values at composition time and call
-`registerCategories(_:)` before scheduling notifications that reference them.
+`replaceCategories(_:)` with the complete desired category set before scheduling
+notifications that reference them. The API replaces the system set; it is not
+an additive registration operation.
 Map `.defaultTap`, `.dismiss`, `.custom`, and `.textInput` in the app router.
 The Kit provides data only; navigation remains host-owned.
 

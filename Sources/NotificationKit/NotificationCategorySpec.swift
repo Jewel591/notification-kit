@@ -35,9 +35,8 @@ public struct NotificationCategoryOptions: OptionSet, Sendable {
     }
 
     public static let customDismissAction = Self(rawValue: 1 << 0)
-    public static let allowInCarPlay = Self(rawValue: 1 << 1)
-    public static let hiddenPreviewsShowTitle = Self(rawValue: 1 << 2)
-    public static let hiddenPreviewsShowSubtitle = Self(rawValue: 1 << 3)
+    public static let hiddenPreviewsShowTitle = Self(rawValue: 1 << 1)
+    public static let hiddenPreviewsShowSubtitle = Self(rawValue: 1 << 2)
 }
 
 public struct NotificationCategorySpec: Sendable, Equatable {

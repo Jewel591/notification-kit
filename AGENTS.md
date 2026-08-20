@@ -45,13 +45,14 @@ and response routing across Ivens' Apple app portfolio.
 - All in-process namespace reconciliations share one serialized mutation queue;
   two features cannot each decide from the same stale capacity snapshot.
 - Immediate event notifications use a separate non-reconciled API. They check
-  current authorization, never prompt, and cannot be replayed by schedule refresh.
+  current authorization, never prompt, cannot be replayed by schedule refresh,
+  and use a fixed durable 90-day/512-entry retry receipt policy.
 - The package delegate always completes the system callback. It extracts a
   Sendable response first, then routes on the main actor. It never opens a URL
   or performs navigation itself.
-- No package-owned UserDefaults keys or app-level `isEnabled` flag exist.
-  Authorization status is read from the operating system; feature enablement
-  remains host-owned.
+- Authorization is never persisted and no app-level `isEnabled` flag exists.
+  The only package-owned UserDefaults state is the bounded immediate-event retry
+  receipt ledger; feature enablement remains host-owned.
 - Foreground presentation, default sound, identifier format, pending-request
   cap behavior, and delegate completion semantics are fixed house standards,
   not initializer configuration.
@@ -71,4 +72,4 @@ and response routing across Ivens' Apple app portfolio.
 - Keep `.agents/skills/integrate-notificationkit/SKILL.md` aligned with the
   public API and migration order.
 - Keep product-playbook's `notification-kit-lint` aligned with the public SPM
-  URL and module-qualified composition-root construction.
+  URL, module-qualified shared client, and main-App single-writer boundary.

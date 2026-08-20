@@ -2,18 +2,30 @@ import Foundation
 
 enum NotificationFingerprint {
     static func make(for notification: DesiredNotification) -> String {
-        let fields = [
+        var fields = [
             notification.title,
             notification.subtitle,
             notification.body,
             notification.threadIdentifier ?? "",
             notification.categoryIdentifier ?? "",
             triggerDescription(notification.trigger),
-            notification.payload.sorted { $0.key < $1.key }
-                .map { "\($0.key)=\($0.value)" }
-                .joined(separator: "&"),
         ]
-        return fnv1a64(fields.joined(separator: "\u{1F}"))
+        for item in notification.payload.sorted(by: { $0.key < $1.key }) {
+            fields.append(item.key)
+            fields.append(item.value)
+        }
+        return fnv1a64(lengthPrefixed(fields))
+    }
+
+    private static func lengthPrefixed(_ fields: [String]) -> Data {
+        var result = Data()
+        for field in fields {
+            let bytes = Data(field.utf8)
+            var length = UInt64(bytes.count).bigEndian
+            withUnsafeBytes(of: &length) { result.append(contentsOf: $0) }
+            result.append(bytes)
+        }
+        return result
     }
 
     private static func triggerDescription(_ trigger: NotificationTriggerSpec) -> String {
@@ -43,9 +55,9 @@ enum NotificationFingerprint {
         }
     }
 
-    private static func fnv1a64(_ value: String) -> String {
+    private static func fnv1a64(_ value: Data) -> String {
         var hash: UInt64 = 14_695_981_039_346_656_037
-        for byte in value.utf8 {
+        for byte in value {
             hash ^= UInt64(byte)
             hash &*= 1_099_511_628_211
         }

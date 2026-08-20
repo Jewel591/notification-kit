@@ -65,6 +65,27 @@ struct ReconciliationTests {
     }
 
     @Test
+    func payloadFieldBoundariesCannotCollideInFingerprint() throws {
+        let first = try DesiredNotification(
+            id: "same",
+            title: "Reminder",
+            body: "Body",
+            payload: ["a": "b&c=d"],
+            trigger: .timeInterval(60, repeats: false)
+        )
+        let second = try DesiredNotification(
+            id: "same",
+            title: "Reminder",
+            body: "Body",
+            payload: ["a": "b", "c": "d"],
+            trigger: .timeInterval(60, repeats: false)
+        )
+
+        #expect(NotificationFingerprint.make(for: first)
+                != NotificationFingerprint.make(for: second))
+    }
+
+    @Test
     func changedContentReplacesTheSameStableIdentifier() async throws {
         let center = TestNotificationCenter()
         await center.configure(pending: [PendingNotificationSnapshot(

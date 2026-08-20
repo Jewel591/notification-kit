@@ -2,6 +2,9 @@ import Foundation
 @preconcurrency import UserNotifications
 
 final class NotificationCenterDelegateAdapter: NSObject, UNUserNotificationCenterDelegate {
+    static let foregroundPresentationOptions: UNNotificationPresentationOptions = [
+        .banner, .list, .sound,
+    ]
     private let routerBox: NotificationRouterBox
 
     @MainActor
@@ -13,7 +16,7 @@ final class NotificationCenterDelegateAdapter: NSObject, UNUserNotificationCente
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        Self.foregroundPresentationOptions
     }
 
     nonisolated func userNotificationCenter(

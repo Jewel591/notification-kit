@@ -37,6 +37,7 @@ public struct ImmediateNotification: Sendable, Equatable {
 
 public enum ImmediateSubmissionOutcome: Sendable, Equatable {
     case submitted(identifier: String)
+    case alreadySubmitted(identifier: String)
     case authorizationUnavailable(NotificationAuthorization)
     case failed(identifier: String)
 }

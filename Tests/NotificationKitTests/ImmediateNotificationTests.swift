@@ -5,9 +5,14 @@ import Testing
 @MainActor
 struct ImmediateNotificationTests {
     @Test
-    func eventNotificationIsSubmittedOnceWithoutEnteringPendingState() async throws {
+    func successfulEventNotificationRecordsAnIdempotencyReceipt() async throws {
         let center = TestNotificationCenter()
-        let client = NotificationClient(testingCenter: center)
+        let receipts = TestImmediateReceiptStore()
+        let client = NotificationClient(
+            testingCenter: center,
+            lifecycleSource: TestNotificationLifecycleSource(),
+            immediateReceipts: receipts
+        )
         let notification = try ImmediateNotification(
             id: "import-complete-42",
             title: "Import complete",
@@ -28,6 +33,49 @@ struct ImmediateNotificationTests {
             "route": "imports/42"
         ])
         #expect(await center.pending.isEmpty)
+        #expect(receipts.identifiers == [
+            "NotificationKit.imports.import-complete-42"
+        ])
+    }
+
+    @Test
+    func repeatedAndOverlappingSubmissionsNotifyOnlyOnce() async throws {
+        let center = TestNotificationCenter()
+        let receipts = TestImmediateReceiptStore()
+        let client = NotificationClient(
+            testingCenter: center,
+            lifecycleSource: TestNotificationLifecycleSource(),
+            immediateReceipts: receipts
+        )
+        let namespace = try NotificationNamespace("imports")
+        let notification = try ImmediateNotification(
+            id: "complete-42",
+            title: "Complete",
+            body: "Body"
+        )
+
+        async let first = client.submitImmediately(
+            namespace: namespace,
+            notification: notification
+        )
+        async let second = client.submitImmediately(
+            namespace: namespace,
+            notification: notification
+        )
+        let concurrent = await [first, second]
+        let retry = await client.submitImmediately(
+            namespace: namespace,
+            notification: notification
+        )
+
+        #expect(concurrent == [
+            .submitted(identifier: "NotificationKit.imports.complete-42"),
+            .submitted(identifier: "NotificationKit.imports.complete-42"),
+        ])
+        #expect(retry == .alreadySubmitted(
+            identifier: "NotificationKit.imports.complete-42"
+        ))
+        #expect(await center.immediateSubmissions.count == 1)
     }
 
     @Test

@@ -15,18 +15,29 @@ final class SystemNotificationCenterService: NotificationCenterServicing, @unche
 
     func authorization() async -> NotificationAuthorization {
         let settings = await center.notificationSettings()
-        switch settings.authorizationStatus {
-        case .notDetermined: return .notDetermined
-        case .denied: return .denied
-        case .authorized: return .authorized
-        case .provisional: return .provisional
-        case .ephemeral: return .ephemeral
-        @unknown default: return .unknown
-        }
+        return Self.makeAuthorization(
+            status: settings.authorizationStatus,
+            alertSetting: settings.alertSetting,
+            soundSetting: settings.soundSetting
+        )
     }
 
+    static func makeAuthorization(
+        status: UNAuthorizationStatus,
+        alertSetting: UNNotificationSetting,
+        soundSetting: UNNotificationSetting
+    ) -> NotificationAuthorization {
+        NotificationAuthorization(
+            status: status.notificationKitValue,
+            alertSetting: alertSetting.notificationKitValue,
+            soundSetting: soundSetting.notificationKitValue
+        )
+    }
+
+    static let authorizationOptions: UNAuthorizationOptions = [.alert, .sound]
+
     func requestAuthorization() async throws -> Bool {
-        try await center.requestAuthorization(options: [.alert, .sound])
+        try await center.requestAuthorization(options: Self.authorizationOptions)
     }
 
     func pendingNotifications() async -> [PendingNotificationSnapshot] {
@@ -43,7 +54,7 @@ final class SystemNotificationCenterService: NotificationCenterServicing, @unche
     }
 
     func schedule(_ request: ScheduledNotificationRequest) async throws {
-        let content = makeContent(
+        let content = Self.makeContent(
             identifier: request.identifier,
             title: request.title,
             subtitle: request.subtitle,
@@ -75,7 +86,7 @@ final class SystemNotificationCenterService: NotificationCenterServicing, @unche
     }
 
     func submitImmediately(_ request: ImmediateNotificationRequest) async throws {
-        let content = makeContent(
+        let content = Self.makeContent(
             identifier: request.identifier,
             title: request.title,
             subtitle: request.subtitle,
@@ -92,7 +103,7 @@ final class SystemNotificationCenterService: NotificationCenterServicing, @unche
         ))
     }
 
-    private func makeContent(
+    static func makeContent(
         identifier: String,
         title: String,
         subtitle: String,
@@ -132,7 +143,7 @@ final class SystemNotificationCenterService: NotificationCenterServicing, @unche
         center.removeDeliveredNotifications(withIdentifiers: identifiers)
     }
 
-    func registerCategories(_ categories: [NotificationCategorySpec]) async {
+    func replaceCategories(_ categories: [NotificationCategorySpec]) async {
         center.setNotificationCategories(Set(categories.map(\.systemValue)))
     }
 
@@ -181,9 +192,6 @@ private extension NotificationCategoryOptions {
     var systemValue: UNNotificationCategoryOptions {
         var value: UNNotificationCategoryOptions = []
         if contains(.customDismissAction) { value.insert(.customDismissAction) }
-        #if os(iOS)
-        if contains(.allowInCarPlay) { value.insert(.allowInCarPlay) }
-        #endif
         if contains(.hiddenPreviewsShowTitle) {
             value.insert(.hiddenPreviewsShowTitle)
         }
@@ -194,7 +202,7 @@ private extension NotificationCategoryOptions {
     }
 }
 
-private extension NotificationCategorySpec {
+extension NotificationCategorySpec {
     var systemValue: UNNotificationCategory {
         UNNotificationCategory(
             identifier: id,
@@ -202,5 +210,29 @@ private extension NotificationCategorySpec {
             intentIdentifiers: intentIdentifiers,
             options: options.systemValue
         )
+    }
+}
+
+private extension UNAuthorizationStatus {
+    var notificationKitValue: NotificationAuthorizationStatus {
+        switch self {
+        case .notDetermined: .notDetermined
+        case .denied: .denied
+        case .authorized: .authorized
+        case .provisional: .provisional
+        case .ephemeral: .ephemeral
+        @unknown default: .unknown
+        }
+    }
+}
+
+private extension UNNotificationSetting {
+    var notificationKitValue: NotificationCapabilitySetting {
+        switch self {
+        case .notSupported: .notSupported
+        case .disabled: .disabled
+        case .enabled: .enabled
+        @unknown default: .unknown
+        }
     }
 }

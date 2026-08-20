@@ -70,7 +70,7 @@ actor NotificationReconciler {
             return ReconciliationReport(disposition: .superseded)
         }
 
-        if !authorization.canDeliver {
+        if !authorization.canSchedule {
             let ownedPending = pending.map(\.identifier).filter(namespace.owns)
             let delivered = await center.deliveredNotificationIdentifiers()
             guard isCurrent(generation, namespace: namespace.id) else {

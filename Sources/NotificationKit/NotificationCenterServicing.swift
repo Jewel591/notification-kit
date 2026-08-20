@@ -85,8 +85,22 @@ public protocol NotificationCenterServicing: Sendable {
     func submitImmediately(_ request: ImmediateNotificationRequest) async throws
     func removePendingNotificationRequests(withIdentifiers identifiers: [String]) async
     func removeDeliveredNotifications(withIdentifiers identifiers: [String]) async
-    func registerCategories(_ categories: [NotificationCategorySpec]) async
+    func replaceCategories(_ categories: [NotificationCategorySpec]) async
 
     @MainActor
     func installDelegate(router: (any NotificationResponseRouting)?)
+}
+
+@_spi(Testing)
+@MainActor
+public protocol NotificationLifecycleSourcing: AnyObject {
+    var becameActiveHandler: (() -> Void)? { get set }
+    func start()
+}
+
+@_spi(Testing)
+@MainActor
+public protocol ImmediateNotificationReceiptStoring: AnyObject {
+    func contains(_ identifier: String) -> Bool
+    func insert(_ identifier: String)
 }
